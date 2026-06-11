@@ -1,73 +1,95 @@
-
 import rasterio
-
-from abc import ABC
-from pathlib import Path
+import rasterio.windows
 import numpy as np
 
-CASTING_DICT = {
-    np.uint32 : rasterio.float32,
-    np.uint16 : rasterio.float32,
-    np.uint64 : rasterio.float64,
-    np.int16 : rasterio.float32,
-    np.int32 : rasterio.float32,
-    np.int64 : rasterio.float64
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Optional
+
+from .data_structures import ImageSubset
+
+# Integer dtypes that must be promoted to float before processing.
+_INT_TO_FLOAT = {
+    np.dtype("uint16"): np.float32,
+    np.dtype("uint32"): np.float32,
+    np.dtype("uint64"): np.float64,
+    np.dtype("int16"):  np.float32,
+    np.dtype("int32"):  np.float32,
+    np.dtype("int64"):  np.float64,
 }
 
 
 class ImageLoader(ABC):
-    # class to read image and image header
-    def __init__(self, data_filename, header_file_name=None):
+    def __init__(self, data_filename: str, header_file_name: Optional[str] = None):
         self.data_filename = data_filename
         self.header_file_name = header_file_name
-    
-    def read_image(self):
-        "Implement this using Inheritance"
-        pass
-    
+
+    @abstractmethod
+    def read_image(self) -> np.ndarray:
+        ...
+
     def read_header(self):
-        "Implement this using Inheritance"
+        ...
 
 
 class GeotifImageLoader:
-    def __init__(self, image_filename, image_subset=None, header_filename=None):
+    """Load a GeoTIFF hyperspectral image into a (lines, bands, samples) array.
+
+    Parameters
+    ----------
+    image_filename:
+        Path to the GeoTIFF file.
+    image_subset:
+        Optional :class:`ImageSubset` specifying the spatial window to load.
+        When *None* the full image is loaded.
+    """
+
+    def __init__(
+        self,
+        image_filename: str,
+        image_subset: Optional[ImageSubset] = None,
+        header_filename: Optional[str] = None,
+    ):
         self.image_filename = Path(image_filename)
-        self.header_filename = header_filename
         self.image_subset = image_subset
-        self.data = None
-        self.header = None
+        self.header_filename = header_filename
+        self._data: Optional[np.ndarray] = None
+        self.profile: Optional[dict] = None
 
-        self.profile = None
+    def get_image(self) -> np.ndarray:
+        """Return the image array, loading from disk on first call."""
+        if self._data is None:
+            self._data = self._read_image_data()
+            target_dtype = _INT_TO_FLOAT.get(self._data.dtype)
+            if target_dtype is not None:
+                self._data = self._data.astype(target_dtype)
+        return self._data.copy()
 
-    def get_image(self):
-        if self.data is None:
-            self.data = self.__read_image_data()
-            if self.data.dtype in list(CASTING_DICT.keys()):
-                self.data = self.data.astype(CASTING_DICT.get(self.data.dtype, rasterio.float32))
-        print("Image Loading Dtype : ", self.data.dtype)
-        return self.data.copy()
-    
-    def get_header(self):
-        if self.header == None:
-            self.header = self.__read_image_header_data()
-        return self.header
-
-
-    def __read_image_data(self):
-        # TODO: implement load only subset feature
+    def _read_image_data(self) -> np.ndarray:
         if not self.image_filename.exists():
-            raise Exception("File not Found")
-        
-        _temp_data = None
-        with rasterio.open(self.image_filename) as hyspec_image:
-            # _temp_data = hyspec_image.read() #(bands, row, cols)
-            _temp_data =self.__get_transposed_image(hyspec_image)
-            self.profile = hyspec_image.profile
-        return _temp_data
-    
-    def __get_transposed_image(self, hyspec_image):
-        '''returns image in format of (height, bands, width)'''
-        return np.transpose(hyspec_image.read(), (1, 0, 2)) #(height, bands, width)
+            raise FileNotFoundError(f"Image file not found: {self.image_filename}")
 
-    def __read_image_header_data(self):
-        pass
+        with rasterio.open(self.image_filename) as src:
+            if self.image_subset is not None:
+                s = self.image_subset
+                window = rasterio.windows.Window(
+                    col_off=s.startsSamp,
+                    row_off=s.startLine,
+                    width=s.endSamp - s.startsSamp,
+                    height=s.endLine - s.startLine,
+                )
+                data = src.read(window=window)
+                # Update profile to reflect the subset dimensions.
+                transform = src.window_transform(window)
+                self.profile = dict(src.profile)
+                self.profile.update(
+                    height=window.height,
+                    width=window.width,
+                    transform=transform,
+                )
+            else:
+                data = src.read()
+                self.profile = dict(src.profile)
+
+        # rasterio returns (bands, lines, samples); transpose to (lines, bands, samples)
+        return np.transpose(data, (1, 0, 2))

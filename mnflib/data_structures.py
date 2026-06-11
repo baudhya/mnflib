@@ -1,17 +1,16 @@
 import pickle
 import numpy as np
 
-from typing import List
+from typing import List, Optional
 from enum import Enum
-from dataclasses import dataclass
-from scipy.linalg.blas import sgemv, ssyrk, ssyr, sger
+from dataclasses import dataclass, field
 
-from pprint import pprint
 
 class TransformDirection(Enum):
     RUN_BOTH = 'RUN_BOTH'
     RUN_FORWARD = 'RUN_FORWARD'
     RUN_INVERSE = 'RUN_INVERSE'
+
 
 @dataclass
 class MNFConfig:
@@ -22,6 +21,9 @@ class MNFConfig:
     lines: int
     percentageOfBandsInInverse: float
     noiseMatrixCalculation: str
+    # Rasterio profile dict for preserving geospatial metadata in outputs.
+    profile: Optional[dict] = None
+
 
 @dataclass
 class MNFResult:
@@ -32,143 +34,124 @@ class MNFResult:
     image_covariance: np.ndarray
     noise_covariance: np.ndarray
 
+
 class HyspexHeader:
     def __init__(self):
-        self.samples:int = 0
-        self.bands:int = 0
-        self.lines:int = 0
-        self.offset:int = 0
-        self.wlens:List[float] = 0
-        self.datatype:int = 0
+        self.samples: int = 0
+        self.bands: int = 0
+        self.lines: int = 0
+        self.offset: int = 0
+        self.wlens: List[float] = []
+        self.datatype: int = 0
 
 
 class ImageSubset:
     def __init__(self):
-        self.startsSamp:int = 0
-        self.endSamp:int = 0
-        self.startLine:int = 0
-        self.endLine:int = 0
-        self.startBand:int = 0
-        self.endBand:int = 0
+        self.startsSamp: int = 0
+        self.endSamp: int = 0
+        self.startLine: int = 0
+        self.endLine: int = 0
+        self.startBand: int = 0
+        self.endBand: int = 0
 
 
 class ImageStatistics:
-    def __init__(self, bands):
-        self.n:int = 0  # number of pixels so far summed over
-        self.C = None  # covariances Matrix
-        self.means = None # means
-        self.bands:int = bands
-        self._init(bands)
-    
-    def _init(self, bands):
-        self.C = np.zeros((self.bands, self.bands))
-        self.means = np.zeros(self.bands)
-        
-    def get_means(self):
+    """Incremental (online) per-line covariance accumulator.
+
+    Uses the parallel/batch update formula so statistics can be merged one
+    line at a time without storing all data in memory.
+
+    ``get_cov()`` returns the population covariance (divides accumulated
+    scatter by total pixel count *n*).
+    """
+
+    def __init__(self, bands: int):
+        self.bands: int = bands
+        self.n: int = 0
+        self.C: np.ndarray = np.zeros((bands, bands), dtype=np.float64)
+        self.means: np.ndarray = np.zeros(bands, dtype=np.float64)
+
+    def get_means(self) -> np.ndarray:
         return self.means
 
-    def get_cov(self):
-        return self.C / self.n 
+    def get_cov(self) -> np.ndarray:
+        if self.n == 0:
+            raise RuntimeError("No data accumulated yet.")
+        return self.C / self.n
 
-    def write_mean_to_file(self, location):
-        with open(location, 'wb') as fp:
-            pickle.dump(self.get_means(), fp)
-            np.savetxt(location + ".txt", self.means)
-
-    def write_covariance_to_file(self, location):
-        with open(location, 'wb') as fp:
-            pickle.dump(self.get_cov(), fp)
-            np.savetxt(location + ".txt", self.C)
-
-
-    def read_mean_from_file(self, location):
-        with open(location, 'rb') as fp:
-            self.means = pickle.load(fp)
-    
-    def read_covariance_from_file(self, location):
-        with open(location, 'rb') as fp:
-            self.C = pickle.load(fp)   
-
-    def write_to_file(self, location):
-        self.write_covariance_to_file(location + "_cov.pkl")
-        self.write_mean_to_file(location + "_mean.pkl")
-
-    def read_from_file(self, location):
-        self.read_covariance_from_file(location + "_cov.pkl")
-        self.read_mean_from_file(location + "_mean.pkl")
-        self.n = 1.0
-
-    def update_with_line(self, line, samples):
-        # new_n = self.n + samples
-        # line_mean = np.mean(line, axis=1)
-        # line_subtracted_by_mean = line - line_mean[:, None]
-        # self.C += line_subtracted_by_mean @ line_subtracted_by_mean.T
-        # mean_delta = line_mean - self.means
-        
-        # self.means += (samples/new_n)*mean_delta
-        # self.C += samples*(self.n / new_n) * np.outer(mean_delta, mean_delta)
-        # self.n = new_n
-
+    def update_with_line(self, line: np.ndarray, samples: int) -> None:
+        """Merge a new batch of *samples* pixels into the running statistics."""
+        if samples <= 0:
+            return
+        old_n = self.n
         self.n += samples
-        # y := alpha * A * x + beta * y  (general matrix-vector multiplication)
-        line_mean =  1 / samples * sgemv(alpha=1, a=line, x=np.ones(samples))
-        # sger : A := alpha * x * transpose(y) + A (general rank-1 update)
-        line_subtracted_by_mean = line - np.outer(line_mean, np.ones(samples, dtype=line.dtype)) # sger(alpha=-1.0, x=line_mean, y=np.ones(samples, dtype=line.dtype), a=line)
-        # C := alpha * A * transpose(A) + beta * C (general rank-k update)
-        self.C = self.C + line_subtracted_by_mean @ line_subtracted_by_mean.T # ssyrk(alpha=1.0, a=line_subtracted_by_mean, lower=0, beta=1.0,  c=self.C)
-        mean_delta = line_mean - self.means # both are numpy arrays of dimention 1
-        self.means = self.means + samples * (line_mean - self.means) / self.n
-        # C := alpha * x * transpose(x) + A (symmetric rank-1 update)
-        # self.C = ssyr(alpha=samples*(self.n - samples)/self.n, x=mean_delta, a=self.C)
-        self.C += samples*(self.n - samples)/self.n * np.outer(mean_delta, mean_delta)
 
+        line = line.astype(np.float64, copy=False)
+        line_mean = line.mean(axis=1)                    # (bands,)
+        line_centered = line - line_mean[:, None]        # (bands, samples)
+        self.C += line_centered @ line_centered.T        # within-batch scatter
 
+        mean_delta = line_mean - self.means
+        self.means += (samples / self.n) * mean_delta
+        # between-group correction (parallel update formula)
+        self.C += (samples * old_n / self.n) * np.outer(mean_delta, mean_delta)
 
+    def write_to_file(self, location: str) -> None:
+        with open(location + "_cov.pkl", "wb") as f:
+            pickle.dump(self.get_cov(), f)
+        with open(location + "_mean.pkl", "wb") as f:
+            pickle.dump(self.means, f)
+        np.savetxt(location + "_cov.txt", self.get_cov())
+        np.savetxt(location + "_mean.txt", self.means)
+
+    def read_from_file(self, location: str) -> None:
+        """Load statistics previously saved by ``write_to_file``.
+
+        The stored covariance is already normalised (divided by n).  Setting
+        ``n = 1`` makes ``get_cov()`` return it unchanged.
+        """
+        with open(location + "_cov.pkl", "rb") as f:
+            self.C = pickle.load(f)
+        with open(location + "_mean.pkl", "rb") as f:
+            self.means = pickle.load(f)
+        self.n = 1  # C already holds the normalised covariance
 
 
 class ImageStatisticsFull:
-    def __init__(self, bands):
-        self.C = None  # covariances Matrix
-        self.means = None # means
-        self._init(bands)
-    
-    def _init(self, bands):
-        self.C = np.zeros((bands, bands))
-        self.means = np.zeros(bands)
-        
-    def get_means(self):
+    """Whole-image covariance computed in one shot via ``np.cov``.
+
+    ``get_cov()`` returns the stored matrix directly (no division).
+    """
+
+    def __init__(self, bands: int):
+        self.C: np.ndarray = np.zeros((bands, bands), dtype=np.float64)
+        self.means: np.ndarray = np.zeros(bands, dtype=np.float64)
+
+    def get_means(self) -> np.ndarray:
         return self.means
 
-    def get_cov(self):
+    def get_cov(self) -> np.ndarray:
         return self.C
 
-    def write_mean_to_file(self, location):
-        with open(location, 'wb') as fp:
-            pickle.dump(self.get_means(), fp)
-            np.savetxt(location + ".txt", self.means)
+    def update(self, image: np.ndarray) -> None:
+        """Compute statistics from a (bands, pixels) array.
 
-    def write_covariance_to_file(self, location):
-        with open(location, 'wb') as fp:
-            pickle.dump(self.get_cov(), fp)
-            np.savetxt(location + ".txt", self.C)
-
-
-    def read_mean_from_file(self, location):
-        with open(location, 'rb') as fp:
-            self.means = pickle.load(fp)
-    
-    def read_covariance_from_file(self, location):
-        with open(location, 'rb') as fp:
-            self.C = pickle.load(fp)   
-
-    def write_to_file(self, location):
-        self.write_covariance_to_file(location + "_cov.pkl")
-        self.write_mean_to_file(location + "_mean.pkl")
-
-    def read_from_file(self, location):
-        self.read_covariance_from_file(location + "_cov.pkl")
-        self.read_mean_from_file(location + "_mean.pkl")
-
-    def update(self, image):
+        Uses the population (biased) covariance (divides by n) to match the
+        accumulator used by :class:`ImageStatistics`.
+        """
         self.means = np.average(image, axis=1)
-        self.C = np.cov(image)
+        self.C = np.cov(image, bias=True)  # bias=True → divide by n
+
+    def write_to_file(self, location: str) -> None:
+        with open(location + "_cov.pkl", "wb") as f:
+            pickle.dump(self.C, f)
+        with open(location + "_mean.pkl", "wb") as f:
+            pickle.dump(self.means, f)
+        np.savetxt(location + "_cov.txt", self.C)
+        np.savetxt(location + "_mean.txt", self.means)
+
+    def read_from_file(self, location: str) -> None:
+        with open(location + "_cov.pkl", "rb") as f:
+            self.C = pickle.load(f)
+        with open(location + "_mean.pkl", "rb") as f:
+            self.means = pickle.load(f)
