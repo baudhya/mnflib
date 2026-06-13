@@ -2,30 +2,25 @@
 
 **MNF (Minimum Noise Fraction) Transform Library for Hyperspectral Image Processing**
 
-A Python library for applying MNF transforms to hyperspectral images for noise reduction and dimensionality reduction.
+A Python library for applying MNF transforms to hyperspectral images for noise reduction and dimensionality reduction. Implements the Three-Pixel Noise Estimation (TPNE) and Four-Pixel Noise Estimation (4PNE) methods proposed in the accompanying research paper.
 
 ## Features
 
-- **MNF Transform**: Full-image Minimum Noise Fraction transformation
-- **Line-by-Line MNF**: Memory-efficient line-by-line processing for large images
-- **Multiple Noise Estimation Methods**: Support for `next_pixel` and `three_pixel` noise estimation
-- **GeoTIFF Support**: Read and write GeoTIFF files with preserved geospatial metadata
-- **Quality Metrics**: SNR, SSIM, PSNR, and variance calculations
+- **Global MNF**: Whole-image Minimum Noise Fraction transformation
+- **Line-by-Line MNF**: Memory-efficient streaming processing for large images
+- **Three Noise Estimation Methods**: `next_pixel` (NPNE), `three_pixel` (TPNE), `four_pixel` (4PNE)
+- **GeoTIFF Support**: Read and write GeoTIFF files with full geospatial metadata preservation
+- **Quality Metrics**: Per-band SNR, SSIM, PSNR, MSE, and variance calculations
+- **Adaptive Regularisation**: Tikhonov regularisation and Cholesky whitening fallback for ill-conditioned covariance matrices
+- **CLI**: Command-line interface for quick processing without writing code
 
 ## Installation
 
-### From PyPI (when published)
-
 ```bash
-pip install mnflib
-```
-
-### From Source
-
-```bash
-git clone https://github.com/yourusername/mnflib.git
+git clone https://github.com/baudhya/mnflib.git
 cd mnflib
-pip install -e .
+pip install -e .          # basic install
+pip install -e ".[dev]"   # include dev dependencies (pytest, build, twine)
 ```
 
 ## Quick Start
@@ -35,67 +30,134 @@ pip install -e .
 ```python
 from mnflib import MNF, GeotifImageLoader, MNFConfig, TransformDirection
 
-# Load image
+# Load image  (returned as (lines, bands, samples) float32)
 loader = GeotifImageLoader("path/to/image.tif")
-image = loader.get_image()
-
+image  = loader.get_image()
 lines, bands, samples = image.shape
 
-# Configure MNF
+# Configure MNF with TPNE noise estimation
 config = MNFConfig(
     direction=TransformDirection.RUN_BOTH,
     basefilename="path/to/image.tif",
     bands=bands,
     samples=samples,
     lines=lines,
-    percentageOfBandsInInverse=0.1,  # Use top 10% of bands
-    noiseMatrixCalculation="next_pixel"
+    percentageOfBandsInInverse=0.2,        # keep top 20% of bands
+    noiseMatrixCalculation="three_pixel",  # TPNE
+    profile=loader.profile,                # preserve geospatial metadata
 )
 
 # Run MNF
-mnf = MNF(image, config)
-result = mnf.run()
+transformer = MNF(image, config)
+result = transformer.run()
 
-# Access processed image
-processed_image = mnf.image
+# Access denoised image
+processed = transformer.image
+print(result.eigenvalues[:5])   # top-5 eigenvalues (noise fractions)
+```
+
+### Line-by-Line (streaming) mode
+
+```python
+from mnflib import Line_By_Line_MNF
+
+transformer = Line_By_Line_MNF(image, config)
+transformer.run()
 ```
 
 ### Command Line Interface
 
 ```bash
-# Run MNF transform
-mnf --image-path path/to/image.tif --noise-matrix next_pixel --inverse-bands-percentage 0.1
+# Basic MNF with default settings
+mnf --image-path path/to/image.tif
 
-# With line-by-line processing
-mnf --image-path path/to/image.tif --line-by-line --noise-matrix three_pixel
+# TPNE noise estimation, keep top 20% bands
+mnf --image-path image.tif --noise-matrix three_pixel --inverse-bands-percentage 0.2
+
+# Line-by-line mode with 4PNE
+mnf --image-path image.tif --line-by-line --noise-matrix four_pixel
+
+# Forward transform only
+mnf --image-path image.tif --transform-direction forward
+
+# Print quality metrics after processing
+mnf --image-path image.tif --results
 ```
+
+## Noise Estimation Methods
+
+| Method | Key | Description |
+|--------|-----|-------------|
+| Next-Pixel (NPNE) | `next_pixel` | Horizontal pixel difference only |
+| Three-Pixel (TPNE) | `three_pixel` | Average of horizontal, vertical and diagonal differences |
+| Four-Pixel (4PNE) | `four_pixel` | Average of horizontal, vertical, below-horizontal and diagonal differences |
+
+TPNE and 4PNE capture noise in multiple spatial directions, producing a more stable noise covariance matrix. Experimental results on a 40-band reflectance dataset show TPNE outperforms NPNE on SNR gain in **35 of 40 bands**, with all three methods improving 100% of spectral bands.
 
 ## API Reference
 
 ### Classes
 
-- **`MNF`**: Main MNF transform class for whole-image processing
-- **`Line_By_Line_MNF`**: Memory-efficient line-by-line MNF processing
-- **`GeotifImageLoader`**: Load GeoTIFF images
-- **`MNFConfig`**: Configuration dataclass for MNF parameters
-- **`TransformDirection`**: Enum for transform direction (FORWARD, INVERSE, BOTH)
+| Class | Description |
+|-------|-------------|
+| `MNF` | Whole-image MNF transform |
+| `Line_By_Line_MNF` | Streaming line-by-line MNF |
+| `GeotifImageLoader` | Load GeoTIFF images into `(lines, bands, samples)` arrays |
+| `MNFConfig` | Configuration dataclass for all run parameters |
+| `TransformDirection` | Enum: `RUN_FORWARD`, `RUN_INVERSE`, `RUN_BOTH` |
+| `QualityMetricCalculator` | Compute SNR, SSIM, PSNR, MSE between original and processed images |
 
-### Configuration Options
+### MNFConfig Parameters
 
-| Parameter | Description |
-|-----------|-------------|
-| `direction` | Transform direction: `RUN_FORWARD`, `RUN_INVERSE`, or `RUN_BOTH` |
-| `noiseMatrixCalculation` | Noise estimation method: `"next_pixel"` or `"three_pixel"` |
-| `percentageOfBandsInInverse` | Fraction of bands to use in inverse transform (0.0-1.0) |
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `direction` | `TransformDirection` | Which transform(s) to run |
+| `noiseMatrixCalculation` | `str` | `"next_pixel"`, `"three_pixel"`, or `"four_pixel"` |
+| `percentageOfBandsInInverse` | `float` | Fraction of bands kept in inverse transform (0, 1] |
+| `profile` | `dict` | Rasterio profile from loader — preserves CRS and geotransform |
+
+## Output Layout
+
+All outputs are written next to the input image file:
+
+```
+output_images/   — denoised GeoTIFF (LZW-compressed, tiled 256×256)
+eigen_data/      — eigenvalue .dat files
+stats_data/      — covariance and mean .pkl files (used by RUN_INVERSE)
+```
 
 ## Examples
 
-See the `examples/` directory for usage examples:
+```bash
+python examples/run.py                     # batch runner across configs
+python examples/plot_snr_per_band.py       # SNR comparison plots
+python examples/plot_mnf_eigenvalues.py    # eigenvalue visualisation
+python examples/visualize_band.py --image-path image.tif --band 1
+python examples/test_hysis_data.py         # benchmark on HySIS and reflectance datasets
+python examples/per_band_analysis.py       # per-band SSIM/PSNR/SNR comparison across methods
+```
 
-- `visualize_band.py` - Visualize individual bands from TIF files
-- `plot_snr_per_band.py` - Plot SNR across bands for different configurations
-- `plot_mnf_eigenvalues.py` - Visualize MNF eigenvalues
+## Running Tests
+
+```bash
+pip install -e ".[dev]"
+pytest tests/ -v
+```
+
+## Image Array Convention
+
+**Throughout the library, arrays are stored as `(lines, bands, samples)`**, not the rasterio default of `(bands, lines, samples)`. `GeotifImageLoader` transposes on load automatically.
+
+## Research Paper
+
+This library accompanies the paper:
+
+> **Minimum Noise Fraction with Multi-Directional Noise Estimation for Denoising Hyperspectral Imagery**
+> Siddharth Baudh, Kamal Deep
+> Defence Geoinformatics Research Establishment, Chandigarh, India
+
+The paper introduces the TPNE and 4PNE noise estimation methods and evaluates them against the conventional NPNE approach on real hyperspectral datasets. See `MNF_Paper_Final.docx` for the full paper.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.
