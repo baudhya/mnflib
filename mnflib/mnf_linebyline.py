@@ -20,6 +20,8 @@ class Line_By_Line_MNF:
     directory that was written during the forward pass.
     """
 
+    _VALID_NOISE_METHODS = {"next_pixel", "three_pixel", "four_pixel", "soft_diagonal"}
+
     def __init__(self, image: np.ndarray, mnf_config: MNFConfig) -> None:
         self.image = np.ascontiguousarray(image.copy(), dtype=np.float32)
         self.mnf_config = mnf_config
@@ -34,6 +36,11 @@ class Line_By_Line_MNF:
                 f"numBandsInInv must be in [1, {self.bands}], "
                 f"got {self.numBandsInInv} "
                 f"(percentageOfBandsInInverse={mnf_config.percentageOfBandsInInverse})"
+            )
+        if mnf_config.noiseMatrixCalculation not in self._VALID_NOISE_METHODS:
+            raise ValueError(
+                f"Unknown noiseMatrixCalculation '{mnf_config.noiseMatrixCalculation}'. "
+                f"Valid options: {sorted(self._VALID_NOISE_METHODS)}"
             )
 
         self.basefilename = os.path.splitext(mnf_config.basefilename)[0]
@@ -63,9 +70,9 @@ class Line_By_Line_MNF:
             self._load_stats()
             self._run_inverse_pass()
         else:
+            # _process_line handles reconstruction inline for RUN_BOTH,
+            # so a second _run_inverse_pass call is not needed here.
             self._run_forward_pass()
-            if self.direction == TransDir.RUN_BOTH:
-                self._run_inverse_pass()
 
         # Persist for potential later RUN_INVERSE runs.
         if self.direction in (TransDir.RUN_FORWARD, TransDir.RUN_BOTH):
@@ -166,17 +173,34 @@ class Line_By_Line_MNF:
             return np.zeros((self.bands, 0), dtype=np.float32), 0
 
         method = self.mnf_config.noiseMatrixCalculation
+        prev = self._cache_prev_line
+
         if method == "next_pixel":
             noise_est = line[:, :-1] - line[:, 1:]
-        else:
-            # Three-pixel estimator (horizontal + diagonal + vertical)
+        elif method == "three_pixel":
             horiz = line[:, :-1] - line[:, 1:]
-            if self._cache_prev_line is not None:
-                diag = line[:, :-1] - self._cache_prev_line[:, 1:]
-                vert = line[:, :-1] - self._cache_prev_line[:, :-1]
-                noise_est = (horiz + diag + vert) / 3.0
+            if prev is not None:
+                vert = line[:, :-1] - prev[:, :-1]
+                diag = line[:, :-1] - prev[:, 1:]
+                noise_est = (horiz + vert + diag) / 3.0
             else:
                 noise_est = horiz
+        elif method == "four_pixel":
+            horiz = line[:, :-1] - line[:, 1:]
+            if prev is not None:
+                vert = line[:, :-1] - prev[:, :-1]
+                below_horiz = prev[:, :-1] - prev[:, 1:]
+                diag = line[:, :-1] - prev[:, 1:]
+                noise_est = (horiz + vert + below_horiz + diag) / 4.0
+            else:
+                noise_est = horiz
+        else:  # soft_diagonal
+            if prev is not None:
+                d = line[:, :-1] - prev[:, 1:]
+                tau = float(np.median(np.abs(d))) * 0.25
+                noise_est = np.sign(d) * np.maximum(np.abs(d) - tau, 0)
+            else:
+                noise_est = line[:, :-1] - line[:, 1:]
 
         self._cache_prev_line = line.copy()
         return noise_est, line.shape[1] - 1

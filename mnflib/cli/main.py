@@ -40,7 +40,7 @@ Examples:
     parser.add_argument("--line-by-line", action="store_true",
                         help="Use line-by-line MNF instead of whole-image MNF")
     parser.add_argument("--noise-matrix",
-                        choices=["next_pixel", "four_pixel", "three_pixel"],
+                        choices=["next_pixel", "three_pixel", "four_pixel", "soft_diagonal"],
                         default="next_pixel",
                         help="Noise estimation method (default: next_pixel)")
     parser.add_argument("--results", action="store_true",

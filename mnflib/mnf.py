@@ -10,6 +10,7 @@ from .utils import (
     calculate_noise_next_pixel,
     calculate_noise_four_pixel,
     calculate_noise_three_pixel_with_i_pixel,
+    calculate_noise_soft_threshold_diagonal_diff,
     save_to_tiff,
 )
 
@@ -26,6 +27,7 @@ class MNF:
         "next_pixel":   calculate_noise_next_pixel,
         "four_pixel":   calculate_noise_four_pixel,
         "three_pixel":  calculate_noise_three_pixel_with_i_pixel,
+        "soft_diagonal": calculate_noise_soft_threshold_diagonal_diff,
     }
 
     def __init__(self, image: np.ndarray, mnf_config: MNFConfig) -> None:
