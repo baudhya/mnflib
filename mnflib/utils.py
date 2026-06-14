@@ -25,6 +25,16 @@ def calculate_noise_next_pixel(image3D: np.ndarray) -> np.ndarray:
     return image3D[:, :, :-1] - image3D[:, :, 1:]
 
 
+def calculate_noise_soft_threshold_diagonal_diff(image3D: np.ndarray) -> np.ndarray:
+    """Soft-thresholded diagonal diff — removes signal-contaminated small differences.
+
+    tau = MAD(diffs) / 4 adapts automatically to the noise level in the image.
+    """
+    d = image3D[:-1, :, :-1] - image3D[1:, :, 1:]
+    tau = float(np.median(np.abs(d))) * 0.25
+    return np.sign(d) * np.maximum(np.abs(d) - tau, 0)
+
+
 def calculate_noise_three_pixel_with_i_pixel(image3D: np.ndarray) -> np.ndarray:
     """Average of horizontal, vertical, and diagonal diffs."""
     noise = (image3D[:-1, :, :-1] - image3D[:-1, :, 1:])   # horizontal
