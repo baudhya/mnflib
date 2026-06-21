@@ -27,7 +27,6 @@ mnf --image-path image.tif --transform-direction forward
 ## Running Example Scripts
 
 ```bash
-python examples/run.py                    # batch runner across configs
 python examples/plot_snr_per_band.py      # SNR comparison plots
 python examples/plot_mnf_eigenvalues.py   # eigenvalue visualization
 python examples/visualize_band.py --image-path image.tif --band 1
@@ -51,11 +50,11 @@ python examples/visualize_band.py --image-path image.tif --band 1
 - Memory-efficient streaming variant: updates covariance incrementally as each line is processed.
 - Uses `ImageStatistics.update_with_line()` (Welford-style accumulation via BLAS calls).
 - Recomputes eigenvectors every line; handles near-singular covariance with adaptive Tikhonov regularization and Cholesky whitening fallback.
-- On the first few lines the covariance matrix is zero, so `mnf_get_transf_matrix` returns `(None, None, None)` and the original line is passed through unchanged.
+- On the first few lines the covariance matrix is zero, so `_compute_transform_matrices` returns `None` and the original line is passed through unchanged.
 
 ### MNF Algorithm Flow
 
-1. Estimate noise using one of three methods (see below).
+1. Estimate noise using one of four methods (see below).
 2. Compute image covariance `Σ_img` and noise covariance `Σ_noise`.
 3. Solve `Σ_noise · v = λ · Σ_img · v` — eigenvalues are noise-fraction per band.
 4. Sort eigenvalues **ascending** (lowest noise-fraction = highest SNR first).
@@ -64,13 +63,14 @@ python examples/visualize_band.py --image-path image.tif --band 1
 
 ### Noise Estimation Methods (`mnflib/utils.py`)
 
-| Method | Description |
-|--------|-------------|
-| `next_pixel` | `pixel[b,s] - pixel[b,s+1]` (horizontal diff only) |
-| `three_pixel` | Average of horizontal, vertical, and diagonal diffs |
-| `four_pixel` | Average of four neighbors |
+| Method | Function | Description |
+|--------|----------|-------------|
+| `next_pixel` | `calculate_noise_next_pixel` | Horizontal diff only; no previous line needed |
+| `three_pixel` | `calculate_noise_three_pixel` | Average of horizontal, vertical, and diagonal diffs |
+| `four_pixel` | `calculate_noise_four_pixel` | Average of four neighbors |
+| `soft_diagonal` | `calculate_noise_soft_threshold_diagonal_diff` | MAD-thresholded diagonal diff |
 
-`Line_By_Line_MNF.estimate_noise()` maps `next_pixel` to `_estimate_noise_next_pixel` and everything else to `_estimate_noise_next_diagonal` (uses a cached previous line).
+`Line_By_Line_MNF` implements all four methods inline in `_estimate_noise()`, caching the previous line in `_cache_prev_line` for the multi-directional methods.
 
 ### Output Layout
 
@@ -83,8 +83,9 @@ For `RUN_INVERSE`-only mode, `MNF` reads stats back from `stats_data/` via `_loa
 
 ### Key Data Structures (`mnflib/data_structures.py`)
 
-- `MNFConfig` — dataclass holding all run parameters; passed to both transform classes.
+- `MNFConfig` — dataclass holding all run parameters; passed to both transform classes. Key fields: `image_path` (input GeoTIFF path; output dirs are created alongside it), `percentageOfBandsInInverse` (fraction of highest-SNR bands to keep), `noiseMatrixCalculation` (noise method string).
 - `TransformDirection` — enum: `RUN_FORWARD`, `RUN_INVERSE`, `RUN_BOTH`.
-- `MNFResult` — returned by `run()`; holds eigenvalues, eigenvectors, means, covariances.
+- `MNFResult` — returned by `run()`; holds eigenvalues (noise fractions, ascending), eigenvectors, means, covariances.
 - `ImageStatistics` — incremental stats (used by `Line_By_Line_MNF`); `get_cov()` divides by `n`.
 - `ImageStatisticsFull` — whole-image stats (used by `MNF`); `get_cov()` returns `C` directly (already divided during `np.cov`).
+- `ImageSubset` — optional spatial window passed to `GeotifImageLoader` to load a sub-region.
