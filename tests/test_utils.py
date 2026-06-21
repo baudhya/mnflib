@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from mnflib.utils import (
     calculate_noise_next_pixel,
-    calculate_noise_three_pixel_with_i_pixel,
+    calculate_noise_three_pixel,
     calculate_noise_four_pixel,
     noise_added_image,
 )
@@ -29,13 +29,13 @@ class TestNextPixel:
 
 class TestThreePixel:
     def test_shape(self, cube):
-        out = calculate_noise_three_pixel_with_i_pixel(cube)
+        out = calculate_noise_three_pixel(cube)
         lines, bands, samples = cube.shape
         assert out.shape == (lines - 1, bands, samples - 1)
 
     def test_uniform_image_gives_zero_noise(self):
         arr = np.ones((5, 3, 10), dtype=np.float32)
-        out = calculate_noise_three_pixel_with_i_pixel(arr)
+        out = calculate_noise_three_pixel(arr)
         np.testing.assert_allclose(out, 0.0)
 
 

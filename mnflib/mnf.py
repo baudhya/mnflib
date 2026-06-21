@@ -1,3 +1,5 @@
+"""Whole-image MNF transform: loads the full image into memory and processes it in one pass."""
+
 import os
 from typing import Dict, List, Optional, Tuple
 
@@ -6,10 +8,9 @@ from scipy.linalg import eigh
 
 from .data_structures import ImageStatisticsFull, TransformDirection as TransDir, MNFConfig, MNFResult
 from .utils import (
-    timer,
     calculate_noise_next_pixel,
     calculate_noise_four_pixel,
-    calculate_noise_three_pixel_with_i_pixel,
+    calculate_noise_three_pixel,
     calculate_noise_soft_threshold_diagonal_diff,
     save_to_tiff,
 )
@@ -26,7 +27,7 @@ class MNF:
     _NOISE_CALCULATORS = {
         "next_pixel":   calculate_noise_next_pixel,
         "four_pixel":   calculate_noise_four_pixel,
-        "three_pixel":  calculate_noise_three_pixel_with_i_pixel,
+        "three_pixel":  calculate_noise_three_pixel,
         "soft_diagonal": calculate_noise_soft_threshold_diagonal_diff,
     }
 
@@ -49,7 +50,7 @@ class MNF:
         self.lines: int = mnf_config.lines
         self.direction: TransDir = mnf_config.direction
 
-        self.basefilename: str = os.path.splitext(mnf_config.basefilename)[0]
+        self.basefilename: str = os.path.splitext(mnf_config.image_path)[0]
         self.numBandsInInv: int = max(1, int(self.bands * mnf_config.percentageOfBandsInInverse))
 
         # R selects the top numBandsInInv MNF components during reconstruction.
@@ -172,7 +173,7 @@ class MNF:
         img_cov = np.ascontiguousarray(self.img_stats.get_cov(), dtype=np.float64)
         noise_cov = np.ascontiguousarray(self.noise_stats.get_cov(), dtype=np.float64)
 
-        # Solve: noise_cov @ v = λ · img_cov @ v
+        # eigh(A, B) solves A·v = λ·B·v; noise in A → eigenvalues are noise/signal ratios
         eigvals, eigvecs = eigh(noise_cov, img_cov)
 
         # Sort ascending: lowest eigenvalue = lowest noise fraction = highest SNR

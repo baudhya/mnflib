@@ -61,7 +61,7 @@ class TestMNFConfig:
     def test_keyword_construction(self):
         cfg = MNFConfig(
             direction=TransformDirection.RUN_BOTH,
-            basefilename="/tmp/img.tif",
+            image_path="/tmp/img.tif",
             bands=10,
             samples=100,
             lines=50,
@@ -73,7 +73,7 @@ class TestMNFConfig:
     def test_profile_optional(self):
         cfg = MNFConfig(
             direction=TransformDirection.RUN_FORWARD,
-            basefilename="/tmp/img.tif",
+            image_path="/tmp/img.tif",
             bands=4,
             samples=8,
             lines=4,

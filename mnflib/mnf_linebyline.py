@@ -1,3 +1,5 @@
+"""Line-by-line MNF: accumulates statistics incrementally and transforms each line as it arrives."""
+
 import os
 import numpy as np
 import rasterio
@@ -43,7 +45,7 @@ class Line_By_Line_MNF:
                 f"Valid options: {sorted(self._VALID_NOISE_METHODS)}"
             )
 
-        self.basefilename = os.path.splitext(mnf_config.basefilename)[0]
+        self.basefilename = os.path.splitext(mnf_config.image_path)[0]
         self._one_samples = np.ones(self.samples, dtype=np.float32)
 
         # R zeroes out all but the top numBandsInInv MNF components.
@@ -248,6 +250,7 @@ class Line_By_Line_MNF:
         noise_cov: np.ndarray, img_cov: np.ndarray
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
         """Attempt eigh with adaptive Tikhonov regularisation on img_cov."""
+        # eigh(A, B) solves A·v = λ·B·v; noise in A → eigenvalues are noise/signal ratios
         try:
             return eigh(noise_cov, img_cov)
         except np.linalg.LinAlgError:

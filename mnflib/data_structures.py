@@ -1,9 +1,11 @@
+"""Core data structures shared across the MNF pipeline."""
+
 import pickle
 import numpy as np
 
-from typing import List, Optional
+from typing import Optional
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 class TransformDirection(Enum):
@@ -14,35 +16,24 @@ class TransformDirection(Enum):
 
 @dataclass
 class MNFConfig:
-    direction: TransformDirection
-    basefilename: str
-    bands: int
-    samples: int
-    lines: int
-    percentageOfBandsInInverse: float
-    noiseMatrixCalculation: str
-    # Rasterio profile dict for preserving geospatial metadata in outputs.
-    profile: Optional[dict] = None
+    direction: TransformDirection           # which transform(s) to run
+    image_path: str                         # path to input GeoTIFF; output dirs are written alongside it
+    bands: int                              # number of spectral bands
+    samples: int                            # pixels per line (image width)
+    lines: int                              # number of scan lines (image height)
+    percentageOfBandsInInverse: float       # fraction of highest-SNR bands to keep, e.g. 0.2 = top 20%
+    noiseMatrixCalculation: str             # noise method: "next_pixel", "three_pixel", "four_pixel", "soft_diagonal"
+    profile: Optional[dict] = None          # rasterio profile from loader; preserves CRS and geotransform in output
 
 
 @dataclass
 class MNFResult:
-    eigenvalues: np.ndarray
-    eigenvectors: np.ndarray
-    image_mean: np.ndarray
-    noise_mean: np.ndarray
+    eigenvalues: np.ndarray    # noise-fraction per MNF component, ascending (band 0 = highest SNR)
+    eigenvectors: np.ndarray   # forward transform matrix F; columns are MNF basis vectors
+    image_mean: np.ndarray     # per-band mean subtracted before the forward transform
+    noise_mean: np.ndarray     # per-band mean of the estimated noise image
     image_covariance: np.ndarray
     noise_covariance: np.ndarray
-
-
-class HyspexHeader:
-    def __init__(self):
-        self.samples: int = 0
-        self.bands: int = 0
-        self.lines: int = 0
-        self.offset: int = 0
-        self.wlens: List[float] = []
-        self.datatype: int = 0
 
 
 class ImageSubset:

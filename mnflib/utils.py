@@ -1,18 +1,8 @@
-import time
+"""Noise estimation functions and image I/O utilities."""
+
 import numpy as np
 import rasterio
-from functools import wraps
 from typing import Optional
-
-
-def timer(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start = time.perf_counter()
-        result = func(*args, **kwargs)
-        print(f"Function {func.__name__} took {time.perf_counter() - start:.4f}s")
-        return result
-    return wrapper
 
 
 def noise_added_image(image: np.ndarray, mean: float = 0.0, std_dev: float = 0.01) -> np.ndarray:
@@ -35,7 +25,7 @@ def calculate_noise_soft_threshold_diagonal_diff(image3D: np.ndarray) -> np.ndar
     return np.sign(d) * np.maximum(np.abs(d) - tau, 0)
 
 
-def calculate_noise_three_pixel_with_i_pixel(image3D: np.ndarray) -> np.ndarray:
+def calculate_noise_three_pixel(image3D: np.ndarray) -> np.ndarray:
     """Average of horizontal, vertical, and diagonal diffs."""
     noise = (image3D[:-1, :, :-1] - image3D[:-1, :, 1:])   # horizontal
     noise = noise + (image3D[:-1, :, :-1] - image3D[1:, :, :-1])  # vertical

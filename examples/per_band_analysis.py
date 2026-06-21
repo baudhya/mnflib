@@ -72,7 +72,7 @@ def run_mnf(image: np.ndarray, image_path: str, profile: dict,
     lines, bands, samples = image.shape
     cfg = MNFConfig(
         direction=TransformDirection.RUN_BOTH,
-        basefilename=image_path,
+        image_path=image_path,
         bands=bands,
         samples=samples,
         lines=lines,

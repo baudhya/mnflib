@@ -74,7 +74,7 @@ def main():
 
     mnf_config = MNFConfig(
         direction=_DIRECTION_MAP[args.transform_direction],
-        basefilename=args.image_path,
+        image_path=args.image_path,
         bands=bands,
         samples=samples,
         lines=lines,

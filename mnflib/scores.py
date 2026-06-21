@@ -1,3 +1,5 @@
+"""Image quality metrics: SNR, SSIM, PSNR, MSE for evaluating MNF output."""
+
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 

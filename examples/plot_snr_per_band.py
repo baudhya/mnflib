@@ -66,7 +66,7 @@ def main():
         # Config template
         base_config = MNFConfig(
             direction=TransformDirection.RUN_BOTH,
-            basefilename=image_path,
+            image_path=image_path,
             bands=bands,
             samples=samples,
             lines=lines,

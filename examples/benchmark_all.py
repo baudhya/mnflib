@@ -39,7 +39,7 @@ def run_one(image_path: str, noise_method: str, line_by_line: bool) -> dict:
 
     cfg = MNFConfig(
         direction=TransformDirection.RUN_BOTH,
-        basefilename=image_path,
+        image_path=image_path,
         bands=bands,
         samples=samples,
         lines=lines,

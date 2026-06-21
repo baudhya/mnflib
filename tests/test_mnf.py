@@ -10,7 +10,7 @@ def _make_config(tmp_path, direction, pct=0.5, method="next_pixel", line_by_line
     open(img_path, "w").close()
     return MNFConfig(
         direction=direction,
-        basefilename=img_path,
+        image_path=img_path,
         bands=8,
         samples=30,
         lines=20,
@@ -57,7 +57,7 @@ class TestMNFRoundTrip:
         cfg = _make_config(tmp_path, TransformDirection.RUN_BOTH)
         cfg = MNFConfig(
             direction=TransformDirection.RUN_BOTH,
-            basefilename=cfg.basefilename,
+            image_path=cfg.image_path,
             bands=cfg.bands,
             samples=cfg.samples,
             lines=cfg.lines,
@@ -75,7 +75,7 @@ class TestMNFRoundTrip:
                 _synthetic_image(),
                 MNFConfig(
                     direction=TransformDirection.RUN_BOTH,
-                    basefilename=img_path,
+                    image_path=img_path,
                     bands=8, samples=30, lines=20,
                     percentageOfBandsInInverse=0.0,
                     noiseMatrixCalculation="next_pixel",
@@ -116,7 +116,7 @@ class TestLineByLineMNFRoundTrip:
                 _synthetic_image(),
                 MNFConfig(
                     direction=TransformDirection.RUN_BOTH,
-                    basefilename=img_path,
+                    image_path=img_path,
                     bands=8, samples=30, lines=20,
                     percentageOfBandsInInverse=0.0,
                     noiseMatrixCalculation="next_pixel",

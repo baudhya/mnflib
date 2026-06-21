@@ -37,7 +37,7 @@ def _make_config(base_path, profile, lines, total_bands, samples,
                  noise_method, n_inv_bands):
     return MNFConfig(
         direction=TransformDirection.RUN_BOTH,
-        basefilename=base_path,
+        image_path=base_path,
         bands=total_bands,
         samples=samples,
         lines=lines,

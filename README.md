@@ -38,7 +38,7 @@ lines, bands, samples = image.shape
 # Configure MNF with TPNE noise estimation
 config = MNFConfig(
     direction=TransformDirection.RUN_BOTH,
-    basefilename="path/to/image.tif",
+    image_path="path/to/image.tif",
     bands=bands,
     samples=samples,
     lines=lines,
@@ -112,8 +112,10 @@ TPNE and 4PNE capture noise in multiple spatial directions, producing a more sta
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `direction` | `TransformDirection` | Which transform(s) to run |
-| `noiseMatrixCalculation` | `str` | `"next_pixel"`, `"three_pixel"`, or `"four_pixel"` |
-| `percentageOfBandsInInverse` | `float` | Fraction of bands kept in inverse transform (0, 1] |
+| `image_path` | `str` | Path to the input GeoTIFF; output dirs are written alongside it |
+| `bands` / `samples` / `lines` | `int` | Image dimensions (read from `loader.get_image().shape`) |
+| `noiseMatrixCalculation` | `str` | `"next_pixel"`, `"three_pixel"`, `"four_pixel"`, or `"soft_diagonal"` |
+| `percentageOfBandsInInverse` | `float` | Fraction of highest-SNR bands to keep in reconstruction (0, 1] |
 | `profile` | `dict` | Rasterio profile from loader — preserves CRS and geotransform |
 
 ## Output Layout

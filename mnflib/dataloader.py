@@ -1,8 +1,9 @@
+"""GeoTIFF image loader; returns arrays in (lines, bands, samples) order."""
+
 import rasterio
 import rasterio.windows
 import numpy as np
 
-from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
 
@@ -17,19 +18,6 @@ _INT_TO_FLOAT = {
     np.dtype("int32"):  np.float32,
     np.dtype("int64"):  np.float64,
 }
-
-
-class ImageLoader(ABC):
-    def __init__(self, data_filename: str, header_file_name: Optional[str] = None):
-        self.data_filename = data_filename
-        self.header_file_name = header_file_name
-
-    @abstractmethod
-    def read_image(self) -> np.ndarray:
-        ...
-
-    def read_header(self):
-        ...
 
 
 class GeotifImageLoader:

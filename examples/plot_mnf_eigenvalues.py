@@ -55,7 +55,7 @@ def main():
         # Direction: FORWARD is sufficient to compute eigenvalues
         mnf_config = MNFConfig(
             direction=TransformDirection.RUN_FORWARD, 
-            basefilename=image_path,
+            image_path=image_path,
             bands=bands,
             samples=samples,
             lines=lines,
@@ -80,7 +80,7 @@ def main():
         # Direction: FORWARD is sufficient to compute eigenvalues
         mnf_config = MNFConfig(
             direction=TransformDirection.RUN_FORWARD, 
-            basefilename=image_path,
+            image_path=image_path,
             bands=bands,
             samples=samples,
             lines=lines,
