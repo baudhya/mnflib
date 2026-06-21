@@ -2,67 +2,72 @@
 
 This directory contains standalone scripts that demonstrate how to use the `mnflib` package.
 
+## Setup
+
+Make sure `mnflib` is installed before running:
+
+```bash
+pip install -e .          # from project root
+pip install -e ..         # from examples/ directory
+```
+
+Update any hardcoded `image_path` variables in the scripts to point to your data.
+
 ## Scripts
 
 ### visualize_band.py
 
-Visualize individual bands from TIF files.
+Visualize individual spectral bands from a GeoTIFF.
 
 ```bash
-# Single file mode
-python visualize_band.py --image-path path/to/image.tif --band 1
-
-# Batch mode - process all TIF files in a folder
-python visualize_band.py --folder path/to/folder --band 1
+python examples/visualize_band.py --image-path path/to/image.tif --band 1
+python examples/visualize_band.py --folder path/to/folder --band 1  # batch mode
 ```
 
 ### plot_snr_per_band.py
 
-Plot SNR (Signal-to-Noise Ratio) across bands for different MNF configurations.
+Plot per-band SNR for different MNF noise estimation methods.
 
 ```bash
-python plot_snr_per_band.py
+python examples/plot_snr_per_band.py
 ```
-
-Note: Update the `image_path` variable in the script before running.
 
 ### plot_mnf_eigenvalues.py
 
-Visualize and compare MNF eigenvalues across different configurations.
+Visualize and compare MNF eigenvalues across configurations.
 
 ```bash
-python plot_mnf_eigenvalues.py
+python examples/plot_mnf_eigenvalues.py
 ```
 
-### variance_table_generator.py
+### per_band_analysis.py
 
-Parse MNF output results and generate variance tables in CSV and Markdown formats.
+Compute per-band SSIM, PSNR, and SNR for all noise methods; writes CSVs and plots.
 
 ```bash
-python variance_table_generator.py
+python examples/per_band_analysis.py
 ```
 
-### run.py
+### benchmark_all.py
 
-Batch runner script for executing MNF transforms with multiple configurations.
+Benchmark all noise estimation methods across datasets and produce a summary CSV.
 
 ```bash
-python run.py
+python examples/benchmark_all.py
 ```
 
-### argument_parser.py
+### generate_results_table.py
 
-Argument parser utility used by the main CLI.
+Run MNF with multiple band-retention settings and generate CSV results tables.
 
-## Usage Notes
+```bash
+python examples/generate_results_table.py
+```
 
-1. These scripts are designed to be run from the project root directory or the `examples/` directory.
+### test_hysis_data.py
 
-2. Make sure `mnflib` is installed before running:
-   ```bash
-   pip install -e ..  # If running from examples/
-   # or
-   pip install -e .   # If running from project root
-   ```
+End-to-end benchmark on HySIS and reflectance datasets; writes benchmark CSVs.
 
-3. Update hardcoded paths in scripts as needed for your environment.
+```bash
+python examples/test_hysis_data.py
+```

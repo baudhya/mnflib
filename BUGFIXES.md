@@ -55,7 +55,7 @@ def calculate_noise_four_pixel(image3D):
 
 **What was wrong:**
 
-All three noise estimators (`next_pixel`, `three_pixel`, `four_pixel`) computed
+All noise estimators (`next_pixel`, `three_pixel`, `four_pixel`) computed
 per-line differences using an explicit Python loop:
 
 ```python
@@ -266,7 +266,7 @@ unrecognised method names would propagate to `utils.py` and raise an obscure
 ```python
 if not (0 < cfg.percentageOfBandsInInverse <= 1.0):
     raise ValueError("percentageOfBandsInInverse must be in (0, 1]")
-valid_methods = {"next_pixel", "three_pixel", "four_pixel"}
+valid_methods = {"next_pixel", "three_pixel", "four_pixel", "soft_diagonal"}
 if cfg.noiseMatrixCalculation not in valid_methods:
     raise ValueError(f"noiseMatrixCalculation must be one of {valid_methods}")
 ```
@@ -461,7 +461,7 @@ created:
 
 | File | What it covers |
 |------|---------------|
-| `tests/test_utils.py` | Shape correctness of all three noise estimators; four-pixel correctness verifying all four distinct directional terms |
+| `tests/test_utils.py` | Shape correctness of all four noise estimators; four-pixel correctness verifying all four distinct directional terms |
 | `tests/test_data_structures.py` | `ImageStatistics` matches `np.cov(bias=True)` for single line; incremental accumulation matches batch; `get_cov` raises before data; round-trip persistence via `write_to_file`/`read_from_file`; `MNFConfig` keyword construction and optional profile |
 | `tests/test_mnf.py` | Whole-image round-trip (100% bands → exact reconstruction within `atol=1e-3`); input validation raises on bad arguments; eigen cache hit (decomposition called once for `RUN_BOTH`) |
 | `tests/test_scores.py` | Identical images → MSE=0, PSNR=inf; shape mismatch → `ValueError`; per-band SSIM path; all metric keys present in `calculate_all_metrics` |
