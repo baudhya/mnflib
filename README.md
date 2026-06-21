@@ -8,7 +8,7 @@ A Python library for applying MNF transforms to hyperspectral images for noise r
 
 - **Global MNF**: Whole-image Minimum Noise Fraction transformation
 - **Line-by-Line MNF**: Memory-efficient streaming processing for large images
-- **Three Noise Estimation Methods**: `next_pixel` (NPNE), `three_pixel` (TPNE), `four_pixel` (4PNE)
+- **Four Noise Estimation Methods**: `next_pixel` (NPNE), `three_pixel` (TPNE), `four_pixel` (4PNE), `soft_diagonal`
 - **GeoTIFF Support**: Read and write GeoTIFF files with full geospatial metadata preservation
 - **Quality Metrics**: Per-band SNR, SSIM, PSNR, MSE, and variance calculations
 - **Adaptive Regularisation**: Tikhonov regularisation and Cholesky whitening fallback for ill-conditioned covariance matrices
@@ -91,8 +91,9 @@ mnf --image-path image.tif --results
 | Next-Pixel (NPNE) | `next_pixel` | Horizontal pixel difference only |
 | Three-Pixel (TPNE) | `three_pixel` | Average of horizontal, vertical and diagonal differences |
 | Four-Pixel (4PNE) | `four_pixel` | Average of horizontal, vertical, below-horizontal and diagonal differences |
+| Soft Diagonal | `soft_diagonal` | MAD-thresholded diagonal difference; suppresses signal contamination |
 
-TPNE and 4PNE capture noise in multiple spatial directions, producing a more stable noise covariance matrix. Experimental results on a 40-band reflectance dataset show TPNE outperforms NPNE on SNR gain in **35 of 40 bands**, with all three methods improving 100% of spectral bands.
+TPNE and 4PNE capture noise in multiple spatial directions, producing a more stable noise covariance matrix. Experimental results on a 40-band reflectance dataset show TPNE outperforms NPNE on SNR gain in **35 of 40 bands**, with all four methods improving 100% of spectral bands.
 
 ## API Reference
 
@@ -131,12 +132,13 @@ stats_data/      — covariance and mean .pkl files (used by RUN_INVERSE)
 ## Examples
 
 ```bash
-python examples/run.py                     # batch runner across configs
-python examples/plot_snr_per_band.py       # SNR comparison plots
-python examples/plot_mnf_eigenvalues.py    # eigenvalue visualisation
+python examples/benchmark_all.py                               # benchmark all noise methods across configs
+python examples/generate_results_table.py                      # produce CSV results tables
+python examples/plot_snr_per_band.py                           # SNR comparison plots
+python examples/plot_mnf_eigenvalues.py                        # eigenvalue visualisation
+python examples/per_band_analysis.py                           # per-band SSIM/PSNR/SNR comparison
+python examples/test_hysis_data.py                             # benchmark on HySIS and reflectance datasets
 python examples/visualize_band.py --image-path image.tif --band 1
-python examples/test_hysis_data.py         # benchmark on HySIS and reflectance datasets
-python examples/per_band_analysis.py       # per-band SSIM/PSNR/SNR comparison across methods
 ```
 
 ## Running Tests
