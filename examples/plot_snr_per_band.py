@@ -23,11 +23,12 @@ from mnflib import (
     snr as calc_snr,
 )
 
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
 def main():
-    image_path = "/home/gollum/Desktop/mnf/dataset/reflectance/reflectance.tif"
-    # image_path = "C:\\Users\\ISDSS01\\Desktop\\Siddharth\\reflectance\\reflectance.tif"
-    # image_path = "C:\\Users\\ISDSS01\\Desktop\\Siddharth\\Hysis_SW_500x500x125\\HY1SW018901PS011803.tif"
-    
+    image_path = os.path.join(_ROOT, "dataset", "reflectance", "reflectance.tif")
+
     if not os.path.exists(image_path):
         print(f"Error: Image not found at {image_path}")
         return

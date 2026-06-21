@@ -27,7 +27,7 @@ def _synthetic_image(lines=20, bands=8, samples=30, seed=0):
 
 
 class TestMNFRoundTrip:
-    @pytest.mark.parametrize("method", ["next_pixel", "three_pixel", "four_pixel"])
+    @pytest.mark.parametrize("method", ["next_pixel", "three_pixel", "four_pixel", "soft_diagonal"])
     def test_run_both_reduces_noise(self, tmp_path, method):
         img = _synthetic_image()
         cfg = _make_config(tmp_path, TransformDirection.RUN_BOTH, pct=0.5, method=method)
@@ -101,6 +101,22 @@ class TestMNFRoundTrip:
 
 
 class TestLineByLineMNFRoundTrip:
+    @pytest.mark.parametrize("method", ["next_pixel", "three_pixel", "four_pixel", "soft_diagonal"])
+    def test_run_both_all_noise_methods(self, tmp_path, method):
+        img = _synthetic_image()
+        cfg = _make_config(tmp_path, TransformDirection.RUN_BOTH, method=method)
+        lbl = Line_By_Line_MNF(img, cfg)
+        result = lbl.run()
+        assert lbl.image.shape == img.shape
+        assert result.eigenvalues is not None
+
+    def test_run_forward_changes_image(self, tmp_path):
+        img = _synthetic_image()
+        cfg = _make_config(tmp_path, TransformDirection.RUN_FORWARD)
+        lbl = Line_By_Line_MNF(img, cfg)
+        lbl.run()
+        assert not np.allclose(lbl.image, img)
+
     def test_run_both_produces_output(self, tmp_path):
         img = _synthetic_image()
         cfg = _make_config(tmp_path, TransformDirection.RUN_BOTH)

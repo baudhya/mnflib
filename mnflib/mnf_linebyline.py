@@ -56,6 +56,8 @@ class Line_By_Line_MNF:
         self.img_stats: Optional[ImageStatistics] = None
         self.noise_stats: Optional[ImageStatistics] = None
         self._cache_prev_line: Optional[np.ndarray] = None
+        self._last_eigvals: Optional[np.ndarray] = None
+        self._last_eigvecs: Optional[np.ndarray] = None
 
         self._save_folders: dict = {}
         self._create_output_folders()

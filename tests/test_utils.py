@@ -4,6 +4,7 @@ from mnflib.utils import (
     calculate_noise_next_pixel,
     calculate_noise_three_pixel,
     calculate_noise_four_pixel,
+    calculate_noise_soft_threshold_diagonal_diff,
     noise_added_image,
 )
 
@@ -60,6 +61,28 @@ class TestFourPixel:
         diag  = arr[:-1, :, :-1] - arr[1:, :, 1:]
         expected = (horiz + vert + below + diag) / 4.0
         np.testing.assert_allclose(calculate_noise_four_pixel(arr), expected)
+
+
+class TestSoftDiagonal:
+    def test_shape(self, cube):
+        out = calculate_noise_soft_threshold_diagonal_diff(cube)
+        lines, bands, samples = cube.shape
+        assert out.shape == (lines - 1, bands, samples - 1)
+
+    def test_uniform_image_gives_zero_noise(self):
+        arr = np.ones((5, 3, 10), dtype=np.float32)
+        out = calculate_noise_soft_threshold_diagonal_diff(arr)
+        np.testing.assert_allclose(out, 0.0)
+
+    def test_output_is_soft_thresholded(self):
+        """Diffs smaller than tau should be zeroed out."""
+        rng = np.random.default_rng(7)
+        arr = rng.random((4, 2, 8), dtype=np.float32)
+        out = calculate_noise_soft_threshold_diagonal_diff(arr)
+        d = arr[:-1, :, :-1] - arr[1:, :, 1:]
+        tau = float(np.median(np.abs(d))) * 0.25
+        assert np.all(np.abs(out) <= np.abs(d) + 1e-6)
+        assert np.all(out[np.abs(d) <= tau] == 0.0)
 
 
 class TestNoiseAddedImage:
